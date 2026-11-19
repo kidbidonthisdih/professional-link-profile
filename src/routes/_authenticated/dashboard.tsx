@@ -81,30 +81,33 @@ function Dashboard() {
     if (!profile) return;
     let url = newUrl.trim();
     if (!/^https?:\/\//.test(url)) url = `https://${url}`;
-    try { new URL(url); } catch { return toast.error("That doesn't look like a link"); }
+    try { new URL(url); } catch { toast.error("That doesn't look like a link"); return; }
     const { data, error } = await supabase.from("links")
       .insert({ profile_id: profile.id, url, platform: detectPlatform(url), position: links.length })
       .select().single();
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setLinks([...links, data]);
     setNewUrl("");
   }
 
   async function removeLink(id: string) {
     const { error } = await supabase.from("links").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setLinks(links.filter((l) => l.id !== id));
   }
 
   async function move(i: number, dir: -1 | 1) {
     const j = i + dir;
     if (j < 0 || j >= links.length) return;
+    const a = links[i], b = links[j];
+    if (!a || !b) return;
     const next = [...links];
-    [next[i], next[j]] = [next[j], next[i]];
+    next[i] = b;
+    next[j] = a;
     const withPos = next.map((l, idx) => ({ ...l, position: idx }));
     setLinks(withPos);
     const results = await Promise.all(
-      [withPos[i], withPos[j]].map((l) => supabase.from("links").update({ position: l.position }).eq("id", l.id)),
+      [{ ...b, position: i }, { ...a, position: j }].map((l) => supabase.from("links").update({ position: l.position }).eq("id", l.id)),
     );
     const failed = results.find((r) => r.error);
     if (failed?.error) toast.error(failed.error.message);
