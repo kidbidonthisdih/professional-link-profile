@@ -28,3 +28,8 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- Public profile reads go through `getPublicProfile` server fn (publishable client) so `/$username` SSRs with real meta tags.
+- Username rules live in both `src/lib/username.ts` and the `username_available` SQL function; keep them in sync.
+- Images are URL fields, not uploads: the workspace blocks public storage buckets.

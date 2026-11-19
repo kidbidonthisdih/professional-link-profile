@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/signup")({
-  validateSearch: (s: Record<string, unknown>): { username?: string } => ({
-    username: typeof s.username === "string" ? s.username.slice(0, 20) : undefined,
+  validateSearch: (s: Record<string, unknown>): { username?: string | undefined } => ({
+    username: typeof s["username"] === "string" ? s["username"].slice(0, 20) : undefined,
   }),
   head: () => ({
     meta: [
@@ -57,7 +57,7 @@ function Signup() {
             options: { emailRedirectTo: `${window.location.origin}/dashboard`, data: { username: username.toLowerCase() } },
           });
           setBusy(false);
-          if (error) return toast.error(error.message.includes("Database") ? "That username was just taken. Try another." : error.message);
+          if (error) { toast.error(error.message.includes("Database") ? "That username was just taken. Try another." : error.message); return; }
           if (data.session) window.location.assign("/dashboard");
           else setSentTo(email);
         }}

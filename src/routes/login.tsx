@@ -34,7 +34,7 @@ function Login() {
           setBusy(true);
           const { error } = await supabase.auth.signInWithPassword({ email: String(f.get("email")), password: String(f.get("password")) });
           setBusy(false);
-          if (error) return toast.error(error.message);
+          if (error) { toast.error(error.message); return; }
           navigate({ to: "/dashboard" });
         }}
       >
