@@ -1,21 +1,27 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, ExternalLink, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { detectPlatform, PlatformIcon, platformLabel } from "@/lib/platforms";
 import { ProfileCard } from "@/components/ProfileCard";
+import { ProfileStage } from "@/components/ProfileStage";
 import { DOMAIN, Wordmark } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type LinkRow = Database["public"]["Tables"]["links"]["Row"];
+
+const PRESET_BACKGROUNDS = ["/images/bg-vexa.jpg", "/images/bg-kairo.jpg", "/images/bg-rain.jpg"];
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -35,6 +41,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 function Dashboard() {
   const { userId } = Route.useRouteContext();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [saved, setSaved] = useState<Profile | null>(null);
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -45,10 +52,11 @@ function Dashboard() {
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
-      if (error || !data) return setLoadError(error?.message ?? "Profile not found");
+      if (error || !data) { setLoadError(error?.message ?? "Profile not found"); return; }
       setProfile(data);
+      setSaved(data);
       const { data: l, error: le } = await supabase.from("links").select("*").eq("profile_id", data.id).order("position");
-      if (le) return setLoadError(le.message);
+      if (le) { setLoadError(le.message); return; }
       setLinks(l ?? []);
     })();
   }, [userId]);
@@ -56,7 +64,9 @@ function Dashboard() {
   if (loadError) return <p className="p-10 text-sm text-destructive">Couldn't load your profile: {loadError}</p>;
   if (!profile) return <p className="p-10 font-mono text-sm text-muted-foreground">Loading...</p>;
 
+  const dirty = JSON.stringify(profile) !== JSON.stringify(saved);
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setProfile({ ...profile, [k]: v });
+  const publicUrl = `${DOMAIN}/${profile.username}`;
 
   async function save() {
     if (!profile) return;
@@ -64,16 +74,22 @@ function Dashboard() {
     const { error } = await supabase.from("profiles").update({
       display_name: profile.display_name.slice(0, 40),
       bio: profile.bio.slice(0, 160),
+      status: profile.status?.trim() || null,
+      location: profile.location?.trim() || null,
       avatar_url: profile.avatar_url || null,
       background_url: profile.background_url || null,
       background_color: profile.background_color,
+      card_opacity: profile.card_opacity,
+      card_blur: profile.card_blur,
+      enter_splash: profile.enter_splash,
       discord_tag: profile.discord_tag || null,
       steam_id: profile.steam_id || null,
       show_views: profile.show_views,
     }).eq("id", profile.id);
     setSaving(false);
-    if (error) toast.error(error.message);
-    else toast.success("Saved");
+    if (error) { toast.error(error.message); return; }
+    setSaved(profile);
+    toast.success("Saved");
   }
 
   async function addLink(e: React.FormEvent) {
@@ -98,19 +114,22 @@ function Dashboard() {
 
   async function move(i: number, dir: -1 | 1) {
     const j = i + dir;
-    if (j < 0 || j >= links.length) return;
     const a = links[i], b = links[j];
     if (!a || !b) return;
     const next = [...links];
     next[i] = b;
     next[j] = a;
-    const withPos = next.map((l, idx) => ({ ...l, position: idx }));
-    setLinks(withPos);
+    setLinks(next.map((l, idx) => ({ ...l, position: idx })));
     const results = await Promise.all(
-      [{ ...b, position: i }, { ...a, position: j }].map((l) => supabase.from("links").update({ position: l.position }).eq("id", l.id)),
+      [{ id: b.id, position: i }, { id: a.id, position: j }].map((l) => supabase.from("links").update({ position: l.position }).eq("id", l.id)),
     );
     const failed = results.find((r) => r.error);
     if (failed?.error) toast.error(failed.error.message);
+  }
+
+  async function copyUrl() {
+    try { await navigator.clipboard.writeText(`https://${publicUrl}`); toast.success("Link copied"); }
+    catch { toast.error("Couldn't copy. Select the link and copy it manually."); }
   }
 
   async function signOut() {
@@ -120,82 +139,183 @@ function Dashboard() {
     navigate({ to: "/login", replace: true });
   }
 
+  const completeness = [profile.display_name, profile.bio, profile.avatar_url, profile.background_url, links.length > 0, profile.discord_tag || profile.steam_id].filter(Boolean).length;
+
   return (
     <div className="min-h-screen">
-      <header className="flex h-16 items-center justify-between border-b px-6">
-        <Wordmark />
-        <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/$username" params={{ username: profile.username }} target="_blank">{DOMAIN}/{profile.username}</Link>
-          </Button>
-          <Button variant="outline" size="sm" onClick={signOut}>Log out</Button>
+      <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
+          <Wordmark />
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={copyUrl} className="font-mono"><Copy />{publicUrl}</Button>
+            <Button asChild variant="outline" size="sm"><Link to="/$username" params={{ username: profile.username }} target="_blank"><ExternalLink />View</Link></Button>
+            <Button variant="ghost" size="sm" onClick={signOut}>Log out</Button>
+          </div>
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-10 lg:grid-cols-[1fr_420px]">
-        <div className="space-y-10">
-          <section aria-labelledby="profile-h" className="space-y-5">
-            <h2 id="profile-h" className="text-sm font-medium text-muted-foreground">Profile</h2>
-            <Field id="dn" label="Display name"><Input id="dn" maxLength={40} value={profile.display_name} onChange={(e) => set("display_name", e.target.value)} /></Field>
-            <Field id="bio" label={`Bio (${profile.bio.length}/160)`}><Textarea id="bio" maxLength={160} rows={3} value={profile.bio} onChange={(e) => set("bio", e.target.value)} /></Field>
-            <Field id="av" label="Avatar image URL"><Input id="av" placeholder="https://..." value={profile.avatar_url ?? ""} onChange={(e) => set("avatar_url", e.target.value)} /></Field>
-            <div className="grid gap-5 sm:grid-cols-[1fr_140px]">
-              <Field id="bg" label="Background image URL"><Input id="bg" placeholder="https://..." value={profile.background_url ?? ""} onChange={(e) => set("background_url", e.target.value)} /></Field>
-              <Field id="bgc" label="Background color"><Input id="bgc" type="color" className="h-9 p-1" value={profile.background_color} onChange={(e) => set("background_color", e.target.value)} /></Field>
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field id="dc" label="Discord username"><Input id="dc" maxLength={40} value={profile.discord_tag ?? ""} onChange={(e) => set("discord_tag", e.target.value)} /></Field>
-              <Field id="st" label="Steam friend code"><Input id="st" maxLength={40} value={profile.steam_id ?? ""} onChange={(e) => set("steam_id", e.target.value)} /></Field>
-            </div>
-            <div className="flex items-center gap-3">
-              <Switch id="sv" checked={profile.show_views} onCheckedChange={(v) => set("show_views", v)} />
-              <Label htmlFor="sv">Show view count ({profile.views})</Label>
-            </div>
-            <Button onClick={save} disabled={saving}>{saving ? "Saving..." : "Save profile"}</Button>
-          </section>
+      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-8 lg:grid-cols-[1fr_440px]">
+        <div className="min-w-0">
+          <div className="mb-8">
+            <h1 className="text-2xl font-semibold tracking-tight">Hey, {profile.display_name || profile.username}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Changes show in the preview right away. Save to publish them.</p>
+          </div>
 
-          <section aria-labelledby="links-h" className="space-y-4">
-            <h2 id="links-h" className="text-sm font-medium text-muted-foreground">Links</h2>
-            <form onSubmit={addLink} className="flex gap-2">
-              <Label htmlFor="nl" className="sr-only">New link URL</Label>
-              <Input id="nl" placeholder="twitch.tv/yourname" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
-              <Button type="submit" variant="secondary" disabled={!newUrl.trim()}>Add</Button>
-            </form>
-            {links.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No links yet. Paste your Twitch or YouTube URL above.</p>
-            ) : (
-              <ul className="divide-y rounded-md border">
-                {links.map((l, i) => (
-                  <li key={l.id} className="flex items-center gap-3 px-3 py-2">
-                    <PlatformIcon platform={l.platform} className="size-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm">{platformLabel(l.platform)}</p>
-                      <p className="truncate font-mono text-xs text-muted-foreground">{l.url}</p>
-                    </div>
-                    <Button size="icon" variant="ghost" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp /></Button>
-                    <Button size="icon" variant="ghost" aria-label="Move down" disabled={i === links.length - 1} onClick={() => move(i, 1)}><ArrowDown /></Button>
-                    <Button size="icon" variant="ghost" aria-label="Remove link" onClick={() => removeLink(l.id)}><Trash2 /></Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <dl className="mb-8 grid grid-cols-3 divide-x rounded-xl border">
+            <Stat label="Page views" value={profile.views.toLocaleString("en")} />
+            <Stat label="Links" value={String(links.length)} />
+            <Stat label="Profile setup" value={`${completeness}/6`} />
+          </dl>
+
+          <Tabs defaultValue="profile">
+            <TabsList className="mb-6">
+              <TabsTrigger value="profile">Profile</TabsTrigger>
+              <TabsTrigger value="appearance">Appearance</TabsTrigger>
+              <TabsTrigger value="links">Links <span className="ml-1 font-mono text-xs text-muted-foreground">{links.length}</span></TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="profile" className="space-y-5">
+              <Panel title="Basics">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field id="dn" label="Display name"><Input id="dn" maxLength={40} value={profile.display_name} onChange={(e) => set("display_name", e.target.value)} /></Field>
+                  <Field id="loc" label="Location"><Input id="loc" maxLength={40} placeholder="Berlin" value={profile.location ?? ""} onChange={(e) => set("location", e.target.value)} /></Field>
+                </div>
+                <Field id="status" label="Status line"><Input id="status" maxLength={60} placeholder="live on twitch, ranked grind" value={profile.status ?? ""} onChange={(e) => set("status", e.target.value)} /></Field>
+                <Field id="bio" label="Bio" hint={`${profile.bio.length}/160`}><Textarea id="bio" maxLength={160} rows={3} value={profile.bio} onChange={(e) => set("bio", e.target.value)} /></Field>
+                <Field id="av" label="Avatar image URL"><Input id="av" placeholder="https://..." value={profile.avatar_url ?? ""} onChange={(e) => set("avatar_url", e.target.value)} /></Field>
+              </Panel>
+              <Panel title="Gaming handles">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field id="dc" label="Discord username"><Input id="dc" maxLength={40} value={profile.discord_tag ?? ""} onChange={(e) => set("discord_tag", e.target.value)} /></Field>
+                  <Field id="st" label="Steam friend code"><Input id="st" maxLength={40} value={profile.steam_id ?? ""} onChange={(e) => set("steam_id", e.target.value)} /></Field>
+                </div>
+              </Panel>
+            </TabsContent>
+
+            <TabsContent value="appearance" className="space-y-5">
+              <Panel title="Background">
+                <div className="grid grid-cols-4 gap-3">
+                  <BgOption active={!profile.background_url} onClick={() => set("background_url", null)} label="Solid color">
+                    <span className="size-full" style={{ backgroundColor: profile.background_color }} />
+                  </BgOption>
+                  {PRESET_BACKGROUNDS.map((src) => (
+                    <BgOption key={src} active={profile.background_url === src} onClick={() => set("background_url", src)} label="Preset background">
+                      <img src={src} alt="" className="size-full object-cover" />
+                    </BgOption>
+                  ))}
+                </div>
+                <div className="grid gap-5 sm:grid-cols-[1fr_140px]">
+                  <Field id="bg" label="Or your own image URL"><Input id="bg" placeholder="https://..." value={profile.background_url ?? ""} onChange={(e) => set("background_url", e.target.value)} /></Field>
+                  <Field id="bgc" label="Base color"><Input id="bgc" type="color" className="h-9 p-1" value={profile.background_color} onChange={(e) => set("background_color", e.target.value)} /></Field>
+                </div>
+              </Panel>
+              <Panel title="Card">
+                <Field id="op" label="Card opacity" hint={`${profile.card_opacity}%`}>
+                  <Slider id="op" min={0} max={100} step={5} value={[profile.card_opacity]} onValueChange={([v]) => set("card_opacity", v ?? 70)} />
+                </Field>
+                <Toggle id="blur" label="Blur what's behind the card" checked={profile.card_blur} onChange={(v) => set("card_blur", v)} />
+              </Panel>
+              <Panel title="Page">
+                <Toggle id="splash" label="Show a click-to-enter screen first" checked={profile.enter_splash} onChange={(v) => set("enter_splash", v)} />
+                <Toggle id="sv" label="Show view count" checked={profile.show_views} onChange={(v) => set("show_views", v)} />
+              </Panel>
+            </TabsContent>
+
+            <TabsContent value="links" className="space-y-5">
+              <Panel title="Add a link">
+                <form onSubmit={addLink} className="flex gap-2">
+                  <Label htmlFor="nl" className="sr-only">New link URL</Label>
+                  <div className="relative flex-1">
+                    <PlatformIcon platform={detectPlatform(/^https?:\/\//.test(newUrl) ? newUrl : `https://${newUrl}`)} className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input id="nl" className="pl-9" placeholder="twitch.tv/yourname" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
+                  </div>
+                  <Button type="submit" disabled={!newUrl.trim()}>Add</Button>
+                </form>
+              </Panel>
+              {links.length === 0 ? (
+                <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">No links yet. Paste your Twitch or YouTube URL above.</p>
+              ) : (
+                <ul className="divide-y rounded-xl border">
+                  {links.map((l, i) => (
+                    <li key={l.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="grid size-9 shrink-0 place-items-center rounded-md border bg-secondary"><PlatformIcon platform={l.platform} className="size-4" /></div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{platformLabel(l.platform)}</p>
+                        <p className="truncate font-mono text-xs text-muted-foreground">{l.url}</p>
+                      </div>
+                      <Button size="icon" variant="ghost" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp /></Button>
+                      <Button size="icon" variant="ghost" aria-label="Move down" disabled={i === links.length - 1} onClick={() => move(i, 1)}><ArrowDown /></Button>
+                      <Button size="icon" variant="ghost" aria-label="Remove link" onClick={() => removeLink(l.id)}><Trash2 /></Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
 
-        <aside aria-label="Preview" className="lg:sticky lg:top-10 lg:self-start">
-          <p className="mb-3 text-sm font-medium text-muted-foreground">Preview</p>
-          <div
-            className="flex min-h-[560px] items-center justify-center rounded-lg border bg-cover bg-center p-6"
-            style={{ backgroundColor: profile.background_color, backgroundImage: profile.background_url ? `url(${JSON.stringify(profile.background_url)})` : undefined }}
-          >
-            <ProfileCard profile={{ ...profile, links }} />
+        <aside aria-label="Preview" className="lg:sticky lg:top-20 lg:self-start">
+          <div className="overflow-hidden rounded-xl border">
+            <div className="flex items-center justify-between border-b bg-card px-4 py-2.5">
+              <span className="font-mono text-xs text-muted-foreground">{publicUrl}</span>
+              <span className={cn("font-mono text-[11px]", dirty ? "text-foreground" : "text-muted-foreground")}>{dirty ? "unsaved" : "live"}</span>
+            </div>
+            <ProfileStage color={profile.background_color} image={profile.background_url} className="h-[620px] p-6">
+              <ProfileCard profile={{ ...profile, links }} />
+            </ProfileStage>
           </div>
         </aside>
       </div>
+
+      {dirty && (
+        <div className="fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+          <div role="status" className="flex items-center gap-4 rounded-xl border bg-card py-2 pl-5 pr-2 shadow-lg">
+            <span className="text-sm">You have unsaved changes</span>
+            <Button variant="ghost" size="sm" onClick={() => setProfile(saved)}>Discard</Button>
+            <Button size="sm" onClick={save} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label>{children}</div>;
+function Stat({ label, value }: { label: string; value: string }) {
+  return <div className="px-5 py-4"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 font-mono text-xl">{value}</dd></div>;
+}
+
+function Panel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border bg-card/50">
+      <h2 className="border-b px-5 py-3 text-sm font-medium">{title}</h2>
+      <div className="space-y-5 p-5">{children}</div>
+    </section>
+  );
+}
+
+function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between"><Label htmlFor={id}>{label}</Label>{hint && <span className="font-mono text-xs text-muted-foreground">{hint}</span>}</div>
+      {children}
+    </div>
+  );
+}
+
+function Toggle({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <Label htmlFor={id} className="font-normal">{label}</Label>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+function BgOption({ active, onClick, label, children }: { active: boolean; onClick: () => void; label: string; children: ReactNode }) {
+  return (
+    <button type="button" aria-label={label} aria-pressed={active} onClick={onClick}
+      className={cn("flex aspect-video overflow-hidden rounded-md border-2 transition-colors", active ? "border-foreground" : "border-transparent hover:border-foreground/30")}>
+      {children}
+    </button>
+  );
 }

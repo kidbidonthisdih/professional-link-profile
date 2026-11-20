@@ -1,5 +1,6 @@
 import { createFileRoute, notFound, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ProfileStage } from "@/components/ProfileStage";
 import { supabase } from "@/integrations/supabase/client";
 import { getPublicProfile } from "@/lib/profiles.functions";
 import { ProfileCard } from "@/components/ProfileCard";
@@ -33,6 +34,7 @@ export const Route = createFileRoute("/$username")({
 
 function ProfilePage() {
   const profile = Route.useLoaderData();
+  const [entered, setEntered] = useState(!profile.enter_splash);
   useEffect(() => {
     supabase.rpc("record_view", { _username: profile.username }).then(({ error }) => {
       if (error) console.error("view not recorded", error.message);
@@ -40,13 +42,18 @@ function ProfilePage() {
   }, [profile.username]);
 
   return (
-    <main
-      className="flex min-h-screen flex-col items-center justify-center bg-cover bg-center px-6 py-16"
-      style={{ backgroundColor: profile.background_color, backgroundImage: profile.background_url ? `url(${JSON.stringify(profile.background_url)})` : undefined }}
-    >
-      <ProfileCard profile={profile} />
-      <Link to="/" className="mt-8 font-mono text-xs text-muted-foreground hover:text-foreground">tether.bio</Link>
-    </main>
+    <ProfileStage color={profile.background_color} image={profile.background_url} className="min-h-screen flex-col px-6 py-16">
+      {entered ? (
+        <>
+          <div className="w-full max-w-sm animate-in fade-in duration-500"><ProfileCard profile={profile} /></div>
+          <Link to="/" className="mt-8 font-mono text-xs text-foreground/50 hover:text-foreground">tether.bio</Link>
+        </>
+      ) : (
+        <button type="button" onClick={() => setEntered(true)} className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-md focus-visible:outline-none">
+          <span className="font-mono text-sm tracking-widest text-foreground/80">click to enter</span>
+        </button>
+      )}
+    </ProfileStage>
   );
 }
 

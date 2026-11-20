@@ -55,11 +55,16 @@ export type Database = {
           background_color: string
           background_url: string | null
           bio: string
+          card_blur: boolean
+          card_opacity: number
           created_at: string
           discord_tag: string | null
           display_name: string
+          enter_splash: boolean
           id: string
+          location: string | null
           show_views: boolean
+          status: string | null
           steam_id: string | null
           updated_at: string
           user_id: string | null
@@ -71,11 +76,16 @@ export type Database = {
           background_color?: string
           background_url?: string | null
           bio?: string
+          card_blur?: boolean
+          card_opacity?: number
           created_at?: string
           discord_tag?: string | null
           display_name?: string
+          enter_splash?: boolean
           id?: string
+          location?: string | null
           show_views?: boolean
+          status?: string | null
           steam_id?: string | null
           updated_at?: string
           user_id?: string | null
@@ -87,11 +97,16 @@ export type Database = {
           background_color?: string
           background_url?: string | null
           bio?: string
+          card_blur?: boolean
+          card_opacity?: number
           created_at?: string
           discord_tag?: string | null
           display_name?: string
+          enter_splash?: boolean
           id?: string
+          location?: string | null
           show_views?: boolean
+          status?: string | null
           steam_id?: string | null
           updated_at?: string
           user_id?: string | null
@@ -106,6 +121,14 @@ export type Database = {
     }
     Functions: {
       record_view: { Args: { _username: string }; Returns: undefined }
+      site_stats: {
+        Args: never
+        Returns: {
+          links: number
+          profiles: number
+          views: number
+        }[]
+      }
       username_available: { Args: { _username: string }; Returns: boolean }
     }
     Enums: {

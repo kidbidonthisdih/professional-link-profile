@@ -35,3 +35,10 @@ export const getPublicProfile = createServerFn({ method: "GET" })
     const links = [...(profile.links ?? [])].sort((a, b) => a.position - b.position);
     return { ...profile, links } as PublicProfile;
   });
+
+export const getSiteStats = createServerFn({ method: "GET" }).handler(async () => {
+  const { data, error } = await publicClient().rpc("site_stats");
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return { profiles: Number(row?.profiles ?? 0), views: Number(row?.views ?? 0), links: Number(row?.links ?? 0) };
+});
