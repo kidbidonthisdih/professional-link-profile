@@ -32,6 +32,11 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
+  --color-profile-accent: var(--profile-accent);
+  --color-lilac: var(--lilac);
+  --color-mint: var(--mint);
+  --color-rose: var(--rose);
+  --color-ice: var(--ice);
 }
 
 /* Monochrome: black, white, blackish gray. No accent hue by design. */
@@ -57,6 +62,12 @@
   --border: oklch(0.27 0 0);
   --input: oklch(0.29 0 0);
   --ring: oklch(0.6 0 0);
+  --lilac: oklch(0.8 0.09 300);
+  --mint: oklch(0.84 0.09 160);
+  --rose: oklch(0.8 0.09 15);
+  --ice: oklch(0.84 0.07 235);
+  --profile-accent: var(--foreground);
+  --showcase-shadow: 0 24px 80px color-mix(in oklab, var(--background) 60%, transparent);
 }
 
 @layer base {
@@ -69,7 +80,25 @@
     -webkit-font-smoothing: antialiased;
   }
   ::selection { background: var(--color-foreground); color: var(--color-background); }
+  * { letter-spacing: 0 !important; }
 }
+
+.profile-accent-neutral { --profile-accent: var(--foreground); }
+.profile-accent-violet { --profile-accent: var(--lilac); }
+.profile-accent-mint { --profile-accent: var(--mint); }
+.profile-accent-rose { --profile-accent: var(--rose); }
+.profile-accent-ice { --profile-accent: var(--ice); }
+.profile-font-geist { font-family: var(--font-sans); }
+.profile-font-mono { font-family: var(--font-mono); }
+.profile-font-serif { font-family: Georgia, "Times New Roman", serif; }
+.profile-card { overflow-wrap: anywhere; }
+.profile-weather span { position: absolute; left: var(--particle-x); top: -10%; animation: weather-fall var(--particle-duration) var(--particle-delay) linear infinite; background: var(--foreground); }
+.weather-rain span { width: 1px; height: 32px; opacity: .22; }
+.weather-snow span { width: 3px; height: 3px; border-radius: 50%; opacity: .55; }
+@keyframes weather-fall { to { transform: translate(30px, 100vh); } }
+.showcase-shadow { box-shadow: var(--showcase-shadow); }
+.editor-panel { border-top: 1px solid var(--border); }
+@media (prefers-reduced-motion: reduce) { .profile-weather { display: none; } }
 
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @utility animate-marquee {

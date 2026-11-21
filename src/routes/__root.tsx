@@ -83,7 +83,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "tether.bio" },
-      { name: "description", content: "Profile links for streamers and gamers." },
+      { name: "description", content: "A personal page for your links, music, and online life." },
     ],
     links: [
       {

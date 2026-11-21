@@ -58,6 +58,7 @@ export type Database = {
           card_blur: boolean
           card_opacity: number
           created_at: string
+          customization: Json
           discord_tag: string | null
           display_name: string
           enter_splash: boolean
@@ -79,6 +80,7 @@ export type Database = {
           card_blur?: boolean
           card_opacity?: number
           created_at?: string
+          customization?: Json
           discord_tag?: string | null
           display_name?: string
           enter_splash?: boolean
@@ -100,6 +102,7 @@ export type Database = {
           card_blur?: boolean
           card_opacity?: number
           created_at?: string
+          customization?: Json
           discord_tag?: string | null
           display_name?: string
           enter_splash?: boolean
@@ -130,6 +133,7 @@ export type Database = {
         }[]
       }
       username_available: { Args: { _username: string }; Returns: boolean }
+      valid_profile_customization: { Args: { c: Json }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

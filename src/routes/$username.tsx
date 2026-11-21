@@ -4,6 +4,8 @@ import { ProfileStage } from "@/components/ProfileStage";
 import { supabase } from "@/integrations/supabase/client";
 import { getPublicProfile } from "@/lib/profiles.functions";
 import { ProfileCard } from "@/components/ProfileCard";
+import { readCustomization } from "@/lib/customization";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/$username")({
   loader: async ({ params }) => {
@@ -34,6 +36,7 @@ export const Route = createFileRoute("/$username")({
 
 function ProfilePage() {
   const profile = Route.useLoaderData();
+  const customization = readCustomization(profile.customization);
   const [entered, setEntered] = useState(!profile.enter_splash);
   useEffect(() => {
     supabase.rpc("record_view", { _username: profile.username }).then(({ error }) => {
@@ -42,16 +45,16 @@ function ProfilePage() {
   }, [profile.username]);
 
   return (
-    <ProfileStage color={profile.background_color} image={profile.background_url} className="min-h-screen flex-col px-6 py-16">
+    <ProfileStage color={profile.background_color} image={profile.background_url} customization={customization} className="min-h-screen flex-col px-6 py-16">
       {entered ? (
         <>
           <div className="w-full max-w-sm animate-in fade-in duration-500"><ProfileCard profile={profile} /></div>
           <Link to="/" className="mt-8 font-mono text-xs text-foreground/50 hover:text-foreground">tether.bio</Link>
         </>
       ) : (
-        <button type="button" onClick={() => setEntered(true)} className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-md focus-visible:outline-none">
-          <span className="font-mono text-sm tracking-widest text-foreground/80">click to enter</span>
-        </button>
+        <Button type="button" variant="ghost" onClick={() => setEntered(true)} className="absolute inset-0 z-20 flex h-full w-full items-center justify-center rounded-none bg-background/60 backdrop-blur-md hover:bg-background/50">
+          <span className="max-w-sm break-words px-6 font-mono text-sm text-foreground/80">{customization.splashText || "click to enter"}</span>
+        </Button>
       )}
     </ProfileStage>
   );

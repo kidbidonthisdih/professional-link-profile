@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Copy, ExternalLink, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, AudioLines, Copy, ExternalLink, Palette, Link2, SlidersHorizontal, Trash2, UserRound, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { detectPlatform, PlatformIcon, platformLabel } from "@/lib/platforms";
@@ -17,6 +17,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { CustomizationPanel, Section } from "@/components/CustomizationPanel";
+import { customizationSchema, readCustomization, DEFAULT_CUSTOMIZATION } from "@/lib/customization";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type LinkRow = Database["public"]["Tables"]["links"]["Row"];
@@ -46,6 +48,7 @@ function Dashboard() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [newUrl, setNewUrl] = useState("");
+  const [previewSize, setPreviewSize] = useState<"desktop" | "mobile">("desktop");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -67,9 +70,12 @@ function Dashboard() {
   const dirty = JSON.stringify(profile) !== JSON.stringify(saved);
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setProfile({ ...profile, [k]: v });
   const publicUrl = `${DOMAIN}/${profile.username}`;
+  const customization = readCustomization(profile.customization);
 
   async function save() {
     if (!profile) return;
+    const checked = customizationSchema.safeParse(profile.customization);
+    if (!checked.success) { toast.error("Check your customization settings before saving"); return; }
     setSaving(true);
     const { error } = await supabase.from("profiles").update({
       display_name: profile.display_name.slice(0, 40),
@@ -85,6 +91,7 @@ function Dashboard() {
       discord_tag: profile.discord_tag || null,
       steam_id: profile.steam_id || null,
       show_views: profile.show_views,
+      customization: checked.data,
     }).eq("id", profile.id);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
@@ -154,24 +161,26 @@ function Dashboard() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-8 lg:grid-cols-[1fr_440px]">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 pb-28 pt-8 sm:px-6 lg:grid-cols-[1fr_460px]">
         <div className="min-w-0">
           <div className="mb-8">
-            <h1 className="text-2xl font-semibold tracking-tight">Hey, {profile.display_name || profile.username}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Changes show in the preview right away. Save to publish them.</p>
+            <p className="mb-2 font-mono text-xs text-muted-foreground">YOUR SPACE / {profile.username}</p>
+            <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold">Profile studio</h1><Button onClick={save} disabled={saving || !dirty} size="sm"><Check />{saving ? "Saving…" : "Save changes"}</Button></div>
           </div>
 
-          <dl className="mb-8 grid grid-cols-3 divide-x rounded-xl border">
+          <dl className="mb-8 grid grid-cols-3 divide-x border-y">
             <Stat label="Page views" value={profile.views.toLocaleString("en")} />
             <Stat label="Links" value={String(links.length)} />
             <Stat label="Profile setup" value={`${completeness}/6`} />
           </dl>
 
           <Tabs defaultValue="profile">
-            <TabsList className="mb-6">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="appearance">Appearance</TabsTrigger>
-              <TabsTrigger value="links">Links <span className="ml-1 font-mono text-xs text-muted-foreground">{links.length}</span></TabsTrigger>
+            <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
+              <TabsTrigger value="profile" className="gap-2 py-2.5"><UserRound className="size-3.5" />Profile</TabsTrigger>
+              <TabsTrigger value="appearance" className="gap-2 py-2.5"><Palette className="size-3.5" />Design</TabsTrigger>
+              <TabsTrigger value="effects" className="gap-2 py-2.5"><SlidersHorizontal className="size-3.5" />Effects</TabsTrigger>
+              <TabsTrigger value="audio" className="gap-2 py-2.5"><AudioLines className="size-3.5" />Audio</TabsTrigger>
+              <TabsTrigger value="links" className="gap-2 py-2.5"><Link2 className="size-3.5" />Links <span className="font-mono text-xs text-muted-foreground">{links.length}</span></TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-5">
@@ -180,11 +189,11 @@ function Dashboard() {
                   <Field id="dn" label="Display name"><Input id="dn" maxLength={40} value={profile.display_name} onChange={(e) => set("display_name", e.target.value)} /></Field>
                   <Field id="loc" label="Location"><Input id="loc" maxLength={40} placeholder="Berlin" value={profile.location ?? ""} onChange={(e) => set("location", e.target.value)} /></Field>
                 </div>
-                <Field id="status" label="Status line"><Input id="status" maxLength={60} placeholder="live on twitch, ranked grind" value={profile.status ?? ""} onChange={(e) => set("status", e.target.value)} /></Field>
+                <Field id="status" label="Status line"><Input id="status" maxLength={60} placeholder="probably listening to music" value={profile.status ?? ""} onChange={(e) => set("status", e.target.value)} /></Field>
                 <Field id="bio" label="Bio" hint={`${profile.bio.length}/160`}><Textarea id="bio" maxLength={160} rows={3} value={profile.bio} onChange={(e) => set("bio", e.target.value)} /></Field>
                 <Field id="av" label="Avatar image URL"><Input id="av" placeholder="https://..." value={profile.avatar_url ?? ""} onChange={(e) => set("avatar_url", e.target.value)} /></Field>
               </Panel>
-              <Panel title="Gaming handles">
+              <Panel title="Handles">
                 <div className="grid gap-5 sm:grid-cols-2">
                   <Field id="dc" label="Discord username"><Input id="dc" maxLength={40} value={profile.discord_tag ?? ""} onChange={(e) => set("discord_tag", e.target.value)} /></Field>
                   <Field id="st" label="Steam friend code"><Input id="st" maxLength={40} value={profile.steam_id ?? ""} onChange={(e) => set("steam_id", e.target.value)} /></Field>
@@ -198,8 +207,8 @@ function Dashboard() {
                   <BgOption active={!profile.background_url} onClick={() => set("background_url", null)} label="Solid color">
                     <span className="size-full" style={{ backgroundColor: profile.background_color }} />
                   </BgOption>
-                  {PRESET_BACKGROUNDS.map((src) => (
-                    <BgOption key={src} active={profile.background_url === src} onClick={() => set("background_url", src)} label="Preset background">
+                  {PRESET_BACKGROUNDS.map((src, i) => (
+                    <BgOption key={src} active={profile.background_url === src} onClick={() => set("background_url", src)} label={["Mountain background", "Forest background", "Rain background"][i] ?? "Preset background"}>
                       <img src={src} alt="" className="size-full object-cover" />
                     </BgOption>
                   ))}
@@ -215,11 +224,19 @@ function Dashboard() {
                 </Field>
                 <Toggle id="blur" label="Blur what's behind the card" checked={profile.card_blur} onChange={(v) => set("card_blur", v)} />
               </Panel>
-              <Panel title="Page">
+              <CustomizationPanel mode="design" value={customization} onChange={v => set("customization", v)} />
+              <Button variant="outline" onClick={() => set("customization", { ...DEFAULT_CUSTOMIZATION })}>Reset custom styling</Button>
+            </TabsContent>
+
+            <TabsContent value="effects">
+              <CustomizationPanel mode="effects" value={customization} onChange={v => set("customization", v)} />
+              <Panel title="Visibility">
                 <Toggle id="splash" label="Show a click-to-enter screen first" checked={profile.enter_splash} onChange={(v) => set("enter_splash", v)} />
                 <Toggle id="sv" label="Show view count" checked={profile.show_views} onChange={(v) => set("show_views", v)} />
               </Panel>
             </TabsContent>
+
+            <TabsContent value="audio"><CustomizationPanel mode="audio" value={customization} onChange={v => set("customization", v)} /></TabsContent>
 
             <TabsContent value="links" className="space-y-5">
               <Panel title="Add a link">
@@ -227,13 +244,13 @@ function Dashboard() {
                   <Label htmlFor="nl" className="sr-only">New link URL</Label>
                   <div className="relative flex-1">
                     <PlatformIcon platform={detectPlatform(/^https?:\/\//.test(newUrl) ? newUrl : `https://${newUrl}`)} className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input id="nl" className="pl-9" placeholder="twitch.tv/yourname" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
+                    <Input id="nl" className="pl-9" placeholder="instagram.com/yourname" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
                   </div>
                   <Button type="submit" disabled={!newUrl.trim()}>Add</Button>
                 </form>
               </Panel>
               {links.length === 0 ? (
-                <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">No links yet. Paste your Twitch or YouTube URL above.</p>
+                <p className="border-y border-dashed py-8 text-center text-sm text-muted-foreground">No links yet</p>
               ) : (
                 <ul className="divide-y rounded-xl border">
                   {links.map((l, i) => (
@@ -255,12 +272,13 @@ function Dashboard() {
         </div>
 
         <aside aria-label="Preview" className="lg:sticky lg:top-20 lg:self-start">
-          <div className="overflow-hidden rounded-xl border">
+          <div className="mb-4 flex items-center justify-between"><span className="font-mono text-xs text-muted-foreground">PREVIEW</span><div className="flex gap-1"><Button size="sm" variant={previewSize === "desktop" ? "secondary" : "ghost"} onClick={() => setPreviewSize("desktop")}>Wide</Button><Button size="sm" variant={previewSize === "mobile" ? "secondary" : "ghost"} onClick={() => setPreviewSize("mobile")}>Phone</Button></div></div>
+          <div className={cn("mx-auto overflow-hidden rounded-lg border", previewSize === "mobile" && "max-w-[360px]")}>
             <div className="flex items-center justify-between border-b bg-card px-4 py-2.5">
               <span className="font-mono text-xs text-muted-foreground">{publicUrl}</span>
               <span className={cn("font-mono text-[11px]", dirty ? "text-foreground" : "text-muted-foreground")}>{dirty ? "unsaved" : "live"}</span>
             </div>
-            <ProfileStage color={profile.background_color} image={profile.background_url} className="h-[620px] p-6">
+            <ProfileStage color={profile.background_color} image={profile.background_url} customization={customization} className="min-h-[620px] px-5 py-10">
               <ProfileCard profile={{ ...profile, links }} />
             </ProfileStage>
           </div>
@@ -269,8 +287,8 @@ function Dashboard() {
 
       {dirty && (
         <div className="fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
-          <div role="status" className="flex items-center gap-4 rounded-xl border bg-card py-2 pl-5 pr-2 shadow-lg">
-            <span className="text-sm">You have unsaved changes</span>
+          <div role="status" className="flex max-w-full items-center gap-2 rounded-lg border bg-card py-2 pl-3 pr-2 shadow-lg sm:gap-4 sm:pl-5">
+            <span className="text-xs sm:text-sm">Unsaved changes</span>
             <Button variant="ghost" size="sm" onClick={() => setProfile(saved)}>Discard</Button>
             <Button size="sm" onClick={save} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
           </div>
@@ -285,12 +303,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="rounded-xl border bg-card/50">
-      <h2 className="border-b px-5 py-3 text-sm font-medium">{title}</h2>
-      <div className="space-y-5 p-5">{children}</div>
-    </section>
-  );
+  return <Section title={title}>{children}</Section>;
 }
 
 function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
@@ -313,9 +326,9 @@ function Toggle({ id, label, checked, onChange }: { id: string; label: string; c
 
 function BgOption({ active, onClick, label, children }: { active: boolean; onClick: () => void; label: string; children: ReactNode }) {
   return (
-    <button type="button" aria-label={label} aria-pressed={active} onClick={onClick}
-      className={cn("flex aspect-video overflow-hidden rounded-md border-2 transition-colors", active ? "border-foreground" : "border-transparent hover:border-foreground/30")}>
+    <Button type="button" variant="ghost" aria-label={label} aria-pressed={active} onClick={onClick}
+      className={cn("flex h-auto aspect-video overflow-hidden rounded-md border-2 p-0 transition-colors", active ? "border-foreground" : "border-transparent hover:border-foreground/30")}>
       {children}
-    </button>
+    </Button>
   );
 }

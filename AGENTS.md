@@ -33,3 +33,5 @@ use the editor.
 - Public profile reads go through `getPublicProfile` server fn (publishable client) so `/$username` SSRs with real meta tags.
 - Username rules live in both `src/lib/username.ts` and the `username_available` SQL function; keep them in sync.
 - Images are URL fields, not uploads: the workspace blocks public storage buckets.
+- Profile customization is persisted as a validated JSON object; share the schema and defaults between the editor and public rendering to keep previews consistent with saved profiles.
+- Profile visual values use scoped CSS variables and enumerated accent/font classes; never render arbitrary CSS supplied in profile settings.

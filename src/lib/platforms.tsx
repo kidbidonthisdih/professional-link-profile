@@ -1,7 +1,9 @@
-import { siDiscord, siGithub, siKick, siSpotify, siSteam, siTiktok, siTwitch, siX, siYoutube } from "simple-icons";
+import { siDiscord, siGithub, siInstagram, siReddit, siKick, siSpotify, siSteam, siTiktok, siTwitch, siX, siYoutube } from "simple-icons";
 import { Link2 } from "lucide-react";
 
 export const PLATFORMS = {
+  instagram: { label: "Instagram", icon: siInstagram, hosts: ["instagram.com"] },
+  reddit: { label: "Reddit", icon: siReddit, hosts: ["reddit.com", "redd.it"] },
   twitch: { label: "Twitch", icon: siTwitch, hosts: ["twitch.tv"] },
   youtube: { label: "YouTube", icon: siYoutube, hosts: ["youtube.com", "youtu.be"] },
   kick: { label: "Kick", icon: siKick, hosts: ["kick.com"] },
